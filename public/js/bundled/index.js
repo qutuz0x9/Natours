@@ -142,10 +142,10 @@
       this[globalName] = mainExports;
     }
   }
-})({"dsWVI":[function(require,module,exports,__globalThis) {
+})({"2dtHH":[function(require,module,exports,__globalThis) {
 var global = arguments[3];
 var HMR_HOST = null;
-var HMR_PORT = 54106;
+var HMR_PORT = 1234;
 var HMR_SECURE = false;
 var HMR_ENV_HASH = "d6ea1d42532a7575";
 var HMR_USE_SSE = false;
@@ -597,17 +597,27 @@ function hmrAccept(bundle /*: ParcelRequire */ , id /*: string */ ) {
 
 },{}],"f2QDv":[function(require,module,exports,__globalThis) {
 /* eslint-disable */ var _loginJs = require("./login.js");
-var _alertsJs = require("./alerts.js");
 var _updateSettingJs = require("./updateSetting.js");
+var _stripeJs = require("./stripe.js");
 const loginForm = document.querySelector('.form--login');
+const signupForm = document.querySelector('.form--signup');
 const logoutBtn = document.querySelector('.nav__el--logout');
 const userDataForm = document.querySelector('.form-user-data');
 const userPasswordForm = document.querySelector('.form-user-password');
+const bookBtn = document.getElementById('book-tour');
 if (loginForm) loginForm.addEventListener('submit', (e)=>{
     e.preventDefault();
     const email = document.getElementById('email').value;
     const password = document.getElementById('password').value;
     (0, _loginJs.login)(email, password);
+});
+if (signupForm) signupForm.addEventListener('submit', (e)=>{
+    e.preventDefault();
+    const name = document.getElementById('name').value;
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const passwordConfirm = document.getElementById('password-confirm').value;
+    (0, _loginJs.signup)(name, email, password, passwordConfirm);
 });
 if (logoutBtn) logoutBtn.addEventListener('click', (0, _loginJs.logout));
 if (userDataForm) userDataForm.addEventListener('submit', (e)=>{
@@ -621,12 +631,11 @@ if (userDataForm) userDataForm.addEventListener('submit', (e)=>{
 });
 if (userDataForm) userDataForm.addEventListener('submit', (e)=>{
     e.preventDefault();
-    const name = document.getElementById('name').value;
-    const email = document.getElementById('email').value;
-    (0, _updateSettingJs.updateSettings)({
-        name,
-        email
-    }, 'data');
+    const form = new FormData();
+    form.append('name', document.getElementById('name').value);
+    form.append('email', document.getElementById('email').value);
+    form.append('photo', document.getElementById('photo').files[0]);
+    (0, _updateSettingJs.updateSettings)(form, 'data');
 });
 if (userPasswordForm) userPasswordForm.addEventListener('submit', async (e)=>{
     e.preventDefault();
@@ -644,11 +653,17 @@ if (userPasswordForm) userPasswordForm.addEventListener('submit', async (e)=>{
     document.getElementById('password').value = '';
     document.getElementById('password-confirm').value = '';
 });
+if (bookBtn) bookBtn.addEventListener('click', (e)=>{
+    e.target.textContent = 'Processing...';
+    const { tourId } = e.target.dataset;
+    (0, _stripeJs.bookTour)(tourId);
+});
 
-},{"./login.js":"7yHem","./alerts.js":"6Mcnf","./updateSetting.js":"6GcZk"}],"7yHem":[function(require,module,exports,__globalThis) {
+},{"./login.js":"7yHem","./updateSetting.js":"6GcZk","./stripe.js":"10tSC"}],"7yHem":[function(require,module,exports,__globalThis) {
 /* eslint-disable */ var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "login", ()=>login);
+parcelHelpers.export(exports, "signup", ()=>signup);
 parcelHelpers.export(exports, "logout", ()=>logout);
 var _axios = require("axios");
 var _axiosDefault = parcelHelpers.interopDefault(_axios);
@@ -663,7 +678,6 @@ const login = async (email, password)=>{
                 password
             },
             withCredentials: true,
-            credentials: 'include',
             headers: {
                 'Content-Type': 'application/json'
             }
@@ -676,6 +690,32 @@ const login = async (email, password)=>{
         }
     } catch (err) {
         (0, _alertsJs.showAlert)('error', err.response?.data?.message || 'Error logging in. Please try again.');
+    }
+};
+const signup = async (name, email, password, passwordConfirm)=>{
+    try {
+        const res = await (0, _axiosDefault.default)({
+            method: 'POST',
+            url: '/api/v1/users/signup',
+            data: {
+                name,
+                email,
+                password,
+                passwordConfirm
+            },
+            withCredentials: true,
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        if (res.data.status === 'success') {
+            (0, _alertsJs.showAlert)('success', 'Signed up successfully!');
+            window.setTimeout(()=>{
+                location.assign('/');
+            }, 1500);
+        }
+    } catch (err) {
+        (0, _alertsJs.showAlert)('error', err.response.data.message);
     }
 };
 const logout = async ()=>{
@@ -5668,6 +5708,32 @@ const updateSettings = async (data, type)=>{
     }
 };
 
-},{"axios":"jo6P5","./alerts.js":"6Mcnf","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}]},["dsWVI","f2QDv"], "f2QDv", "parcelRequire94c2")
+},{"axios":"jo6P5","./alerts.js":"6Mcnf","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"10tSC":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "bookTour", ()=>bookTour);
+var _alertsJs = require("./alerts.js");
+const bookTour = async (tourId)=>{
+    try {
+        // 1) Get checkout session from API
+        const session = await axios({
+            method: 'GET',
+            url: `/api/v1/booking/checkout-session/${tourId}`,
+            withCredentials: true
+        });
+        console.log('Session:', session.data); // Debug line
+        // 2) Create checkout form + charge credit card
+        const stripe = Stripe("pk_test_51R0JanCXfBxY8gRAijuHgCdWPhSHZeiZMIlieB2mQi9AwhSAHNBmXUPxhub392TjmBx2kencvfNK48rjYZqL08PU00KOABE7rL");
+        const result = await stripe.redirectToCheckout({
+            sessionId: session.data.data.id
+        });
+        if (result.error) (0, _alertsJs.showAlert)('error', result.error.message);
+    } catch (err) {
+        console.error('Stripe error:', err);
+        (0, _alertsJs.showAlert)('error', err.message);
+    }
+};
+
+},{"@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3","./alerts.js":"6Mcnf"}]},["2dtHH","f2QDv"], "f2QDv", "parcelRequire94c2")
 
 //# sourceMappingURL=index.js.map
